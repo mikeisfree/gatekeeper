@@ -117,7 +117,7 @@
 
 <script>
   // ⬇️ WKLEJ TUTAJ URL swojego Apps Script (Web App)
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyQq6I1AuCrc2_RuL5V5Y3v1Vli87h9Qz7qQpcUNORIDKq4TFaXbn4HdS27Xt0a_kG/exec";
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynhChMYCZ2N-41Cpy3V_LETLLI-P3cGaXySETJhoX_VD2oTIdqN8rywW-8jgR3xZpd/exec";
 
   // ⬇️ USTAW TUTAJ SWÓJ PIN (dowolna liczba cyfr)
   const CORRECT_PIN = "1234";
@@ -155,10 +155,21 @@
     }
   }
 
+  function fetchJSONP(url) {
+    return new Promise((resolve, reject) => {
+      const cb = '_cb' + Date.now();
+      const s = document.createElement('script');
+      window[cb] = (data) => { delete window[cb]; s.remove(); resolve(data); };
+      s.onerror = () => { delete window[cb]; s.remove(); reject(new Error('err')); };
+      s.src = url + '&callback=' + cb;
+      document.head.appendChild(s);
+    });
+  }
+
   // --- logika panel ---
   async function setState(val) {
     try {
-      await fetch(SCRIPT_URL + "?action=set&state=" + val);
+      await fetch(SCRIPT_URL + "?action=set&state=" + val, { mode: 'no-cors' });
       document.getElementById("stateLabel").textContent = val;
     } catch(e) {
       alert("Błąd połączenia z Apps Script.");
@@ -167,8 +178,7 @@
 
   async function getState() {
     try {
-      const r = await fetch(SCRIPT_URL + "?action=get");
-      const data = await r.json();
+      const data = await fetchJSONP(SCRIPT_URL + "?action=get");
       document.getElementById("stateLabel").textContent = data.state;
     } catch(e) {}
   }
