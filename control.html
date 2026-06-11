@@ -56,6 +56,43 @@
   #pin-pad button:active { background: #444; transform: scale(0.93); }
   #pin-error { color: #ff1744; font-size: 0.85rem; letter-spacing: 0.1em; min-height: 1em; }
 
+  /* --- ekran tokena --- */
+  #token-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  #token-screen h1 { color: #888; font-size: 1rem; letter-spacing: 0.2em; text-transform: uppercase; }
+  #token-screen p { color: #555; font-size: 0.75rem; text-align: center; max-width: 300px; line-height: 1.5; font-family: Arial, sans-serif; }
+  #token-input {
+    width: 300px;
+    padding: 14px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-family: monospace;
+    text-align: center;
+  }
+  #token-input::placeholder { color: #555; }
+  #token-submit {
+    width: 300px;
+    padding: 14px;
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: background 0.1s;
+    font-family: Arial Black, sans-serif;
+  }
+  #token-submit:active { background: #555; }
+  #token-error { color: #ff1744; font-size: 0.85rem; min-height: 1em; }
+
   /* --- ekran główny --- */
   #main-screen { display: none; flex-direction: column; align-items: center; gap: 40px; }
   h1 { color: #888; font-size: 1.2rem; letter-spacing: 0.2em; text-transform: uppercase; }
@@ -68,13 +105,15 @@
     border: none;
     border-radius: 16px;
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform 0.1s, opacity 0.1s;
   }
   button.big:active { transform: scale(0.95); }
+  button.big:disabled { opacity: 0.4; cursor: default; }
   #btn-pass  { background: #00e676; color: #001a00; }
   #btn-close { background: #ff1744; color: #1a0000; }
   #current { font-size: 1rem; color: #666; letter-spacing: 0.1em; }
   #current span { color: #fff; font-weight: bold; }
+  #save-status { font-size: 0.8rem; color: #555; min-height: 1em; font-family: Arial, sans-serif; }
 </style>
 </head>
 <body>
@@ -105,6 +144,15 @@
   <div id="pin-error"></div>
 </div>
 
+<!-- EKRAN TOKEN -->
+<div id="token-screen">
+  <h1>GitHub Token</h1>
+  <p>Wygeneruj Fine-grained token z uprawnieniem<br><strong style="color:#aaa">Contents: Read and Write</strong><br>dla repozytorium <strong style="color:#aaa">gatekeeper</strong>.<br>Token jest przechowywany tylko w pamięci przeglądarki.</p>
+  <input id="token-input" type="password" placeholder="github_pat_..." autocomplete="off" />
+  <button id="token-submit" onclick="saveToken()">ZATWIERDŹ</button>
+  <div id="token-error"></div>
+</div>
+
 <!-- EKRAN GŁÓWNY -->
 <div id="main-screen">
   <h1>Panel kontrolny</h1>
@@ -113,14 +161,14 @@
     <button class="big" id="btn-close" onclick="setState('CLOSE')">CLOSE</button>
   </div>
   <div id="current">Aktualny stan: <span id="stateLabel">—</span></div>
+  <div id="save-status"></div>
 </div>
 
 <script>
-  // ⬇️ WKLEJ TUTAJ URL swojego Apps Script (Web App)
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynhChMYCZ2N-41Cpy3V_LETLLI-P3cGaXySETJhoX_VD2oTIdqN8rywW-8jgR3xZpd/exec";
-
-  // ⬇️ USTAW TUTAJ SWÓJ PIN (dowolna liczba cyfr)
   const CORRECT_PIN = "1234";
+  const REPO_OWNER  = "mikeisfree";
+  const REPO_NAME   = "gatekeeper";
+  const FILE_PATH   = "status.json";
 
   // --- logika PIN ---
   let entered = "";
@@ -147,40 +195,100 @@
   function checkPin() {
     if (entered === CORRECT_PIN) {
       document.getElementById("pin-screen").style.display = "none";
-      document.getElementById("main-screen").style.display = "flex";
-      getState();
+      const token = sessionStorage.getItem("gh_token");
+      if (token) {
+        showMain(token);
+      } else {
+        document.getElementById("token-screen").style.display = "flex";
+      }
     } else {
       document.getElementById("pin-error").textContent = "Nieprawidłowy PIN";
       setTimeout(pinClear, 600);
     }
   }
 
-  function fetchJSONP(url) {
-    return new Promise((resolve, reject) => {
-      const cb = '_cb' + Date.now();
-      const s = document.createElement('script');
-      window[cb] = (data) => { delete window[cb]; s.remove(); resolve(data); };
-      s.onerror = () => { delete window[cb]; s.remove(); reject(new Error('err')); };
-      s.src = url + '&callback=' + cb;
-      document.head.appendChild(s);
-    });
-  }
+  // --- logika tokena ---
+  async function saveToken() {
+    const token = document.getElementById("token-input").value.trim();
+    if (!token) return;
+    document.getElementById("token-error").textContent = "";
 
-  // --- logika panel ---
-  async function setState(val) {
-    try {
-      await fetch(SCRIPT_URL + "?action=set&state=" + val, { mode: 'no-cors' });
-      document.getElementById("stateLabel").textContent = val;
-    } catch(e) {
-      alert("Błąd połączenia z Apps Script.");
+    // verify token works
+    const resp = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+      { headers: { Authorization: "token " + token } }
+    );
+    if (!resp.ok) {
+      document.getElementById("token-error").textContent = "Token nieprawidłowy lub brak uprawnień.";
+      return;
     }
+
+    sessionStorage.setItem("gh_token", token);
+    document.getElementById("token-screen").style.display = "none";
+    showMain(token);
   }
 
-  async function getState() {
+  document.getElementById("token-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") saveToken();
+  });
+
+  // --- ekran główny ---
+  async function showMain(token) {
+    document.getElementById("main-screen").style.display = "flex";
+    await getState(token);
+  }
+
+  async function getState(token) {
+    const t = token || sessionStorage.getItem("gh_token");
+    const resp = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+      { headers: { Authorization: "token " + t } }
+    );
+    const file = await resp.json();
+    const data = JSON.parse(atob(file.content));
+    document.getElementById("stateLabel").textContent = data.state;
+  }
+
+  async function setState(val) {
+    const token = sessionStorage.getItem("gh_token");
+    const btns = document.querySelectorAll("button.big");
+    btns.forEach(b => b.disabled = true);
+    const statusEl = document.getElementById("save-status");
+    statusEl.textContent = "Zapisywanie...";
+
     try {
-      const data = await fetchJSONP(SCRIPT_URL + "?action=get");
-      document.getElementById("stateLabel").textContent = data.state;
-    } catch(e) {}
+      // get current SHA
+      const getResp = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+        { headers: { Authorization: "token " + token } }
+      );
+      const file = await getResp.json();
+
+      // update file
+      await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: "token " + token,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: "state: " + val,
+            content: btoa('{"state":"' + val + '"}\n'),
+            sha: file.sha
+          })
+        }
+      );
+
+      document.getElementById("stateLabel").textContent = val;
+      statusEl.textContent = "Zapisano.";
+      setTimeout(() => { statusEl.textContent = ""; }, 2000);
+    } catch(e) {
+      statusEl.textContent = "Błąd zapisu.";
+    } finally {
+      btns.forEach(b => b.disabled = false);
+    }
   }
 </script>
 </body>
