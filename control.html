@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Panel kontrolny</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    height: 100vh;
+    background: #111;
+    font-family: Arial Black, sans-serif;
+  }
+
+  /* --- ekran PIN --- */
+  #pin-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  #pin-screen h1 { color: #888; font-size: 1rem; letter-spacing: 0.2em; text-transform: uppercase; }
+  #pin-dots {
+    display: flex;
+    gap: 16px;
+  }
+  .dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #333;
+    transition: background 0.15s;
+  }
+  .dot.filled { background: #fff; }
+  #pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 80px);
+    gap: 12px;
+  }
+  #pin-pad button {
+    width: 80px;
+    height: 80px;
+    font-size: 1.6rem;
+    font-weight: 900;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.1s, transform 0.1s;
+  }
+  #pin-pad button:active { background: #444; transform: scale(0.93); }
+  #pin-error { color: #ff1744; font-size: 0.85rem; letter-spacing: 0.1em; min-height: 1em; }
+
+  /* --- ekran główny --- */
+  #main-screen { display: none; flex-direction: column; align-items: center; gap: 40px; }
+  h1 { color: #888; font-size: 1.2rem; letter-spacing: 0.2em; text-transform: uppercase; }
+  .buttons { display: flex; gap: 30px; }
+  button.big {
+    width: 200px;
+    height: 200px;
+    font-size: 2.5rem;
+    font-weight: 900;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  button.big:active { transform: scale(0.95); }
+  #btn-pass  { background: #00e676; color: #001a00; }
+  #btn-close { background: #ff1744; color: #1a0000; }
+  #current { font-size: 1rem; color: #666; letter-spacing: 0.1em; }
+  #current span { color: #fff; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- EKRAN PIN -->
+<div id="pin-screen">
+  <h1>Wpisz PIN</h1>
+  <div id="pin-dots">
+    <div class="dot" id="d0"></div>
+    <div class="dot" id="d1"></div>
+    <div class="dot" id="d2"></div>
+    <div class="dot" id="d3"></div>
+  </div>
+  <div id="pin-pad">
+    <button onclick="pinPress('1')">1</button>
+    <button onclick="pinPress('2')">2</button>
+    <button onclick="pinPress('3')">3</button>
+    <button onclick="pinPress('4')">4</button>
+    <button onclick="pinPress('5')">5</button>
+    <button onclick="pinPress('6')">6</button>
+    <button onclick="pinPress('7')">7</button>
+    <button onclick="pinPress('8')">8</button>
+    <button onclick="pinPress('9')">9</button>
+    <button onclick="pinClear()" style="font-size:1rem;">CLR</button>
+    <button onclick="pinPress('0')">0</button>
+    <button style="background:#111; cursor:default;"></button>
+  </div>
+  <div id="pin-error"></div>
+</div>
+
+<!-- EKRAN GŁÓWNY -->
+<div id="main-screen">
+  <h1>Panel kontrolny</h1>
+  <div class="buttons">
+    <button class="big" id="btn-pass"  onclick="setState('PASS')">PASS</button>
+    <button class="big" id="btn-close" onclick="setState('CLOSE')">CLOSE</button>
+  </div>
+  <div id="current">Aktualny stan: <span id="stateLabel">—</span></div>
+</div>
+
+<script>
+  // ⬇️ WKLEJ TUTAJ URL swojego Apps Script (Web App)
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyQq6I1AuCrc2_RuL5V5Y3v1Vli87h9Qz7qQpcUNORIDKq4TFaXbn4HdS27Xt0a_kG/exec";
+
+  // ⬇️ USTAW TUTAJ SWÓJ PIN (dowolna liczba cyfr)
+  const CORRECT_PIN = "1234";
+
+  // --- logika PIN ---
+  let entered = "";
+
+  function pinPress(digit) {
+    if (entered.length >= CORRECT_PIN.length) return;
+    entered += digit;
+    updateDots();
+    if (entered.length === CORRECT_PIN.length) checkPin();
+  }
+
+  function pinClear() {
+    entered = "";
+    updateDots();
+    document.getElementById("pin-error").textContent = "";
+  }
+
+  function updateDots() {
+    for (let i = 0; i < CORRECT_PIN.length; i++) {
+      document.getElementById("d" + i).classList.toggle("filled", i < entered.length);
+    }
+  }
+
+  function checkPin() {
+    if (entered === CORRECT_PIN) {
+      document.getElementById("pin-screen").style.display = "none";
+      document.getElementById("main-screen").style.display = "flex";
+      getState();
+    } else {
+      document.getElementById("pin-error").textContent = "Nieprawidłowy PIN";
+      setTimeout(pinClear, 600);
+    }
+  }
+
+  // --- logika panel ---
+  async function setState(val) {
+    try {
+      await fetch(SCRIPT_URL + "?action=set&state=" + val);
+      document.getElementById("stateLabel").textContent = val;
+    } catch(e) {
+      alert("Błąd połączenia z Apps Script.");
+    }
+  }
+
+  async function getState() {
+    try {
+      const r = await fetch(SCRIPT_URL + "?action=get");
+      const data = await r.json();
+      document.getElementById("stateLabel").textContent = data.state;
+    } catch(e) {}
+  }
+</script>
+</body>
+</html>

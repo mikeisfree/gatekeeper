@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="refresh" content="5">
+<title>Status</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #000;
+    font-family: Arial Black, sans-serif;
+  }
+  #status {
+    font-size: 20vw;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+  }
+  .PASS  { color: #00e676; }
+  .CLOSE { color: #ff1744; }
+</style>
+</head>
+<body>
+<div id="status">...</div>
+<script>
+  // ⬇️ WKLEJ TUTAJ URL swojego Apps Script (Web App)
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyQq6I1AuCrc2_RuL5V5Y3v1Vli87h9Qz7qQpcUNORIDKq4TFaXbn4HdS27Xt0a_kG/exec";
+
+  async function update() {
+    try {
+      const r = await fetch(SCRIPT_URL + "?action=get");
+      const data = await r.json();
+      const el = document.getElementById("status");
+      el.textContent = data.state;
+      el.className = data.state;
+      document.body.style.background = data.state === "PASS" ? "#001a00" : "#1a0000";
+    } catch(e) {
+      document.getElementById("status").textContent = "ERR";
+    }
+  }
+  update();
+</script>
+</body>
+</html>
